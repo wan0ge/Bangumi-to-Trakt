@@ -25,7 +25,7 @@
  
 * 启动Bangumi-to-Trakt.py开始转换
 
-* 使用[trakt](https://github.com/xbgmsharp/trakt)项目将CSV导入
+* 使用[trakt](https://github.com/xbgmsharp/trakt)项目将CSV导入（CSV放入该项目文件夹内）
 
 * 导入观看过的Movies（电影）到历史记录，并根据原日期标记
 ```
@@ -79,4 +79,4 @@ python export_trakt.py
 ```
 python export_trakt.py
 ```
-* [开始使用](https://github.com/wan0ge/Bangumi-to-Trakt/edit/master/README.md#%E5%BC%80%E5%A7%8B%E4%BD%BF%E7%94%A8)
+* [开始使用](https://github.com/wan0ge/Bangumi-to-Trakt?tab=readme-ov-file#%E5%BC%80%E5%A7%8B%E4%BD%BF%E7%94%A8)
