@@ -19,6 +19,12 @@
 * [Trakt API](https://trakt.tv/oauth/applications)（任意创建）
 
 ## 开始使用
+* 下载本项目和[trakt](https://github.com/xbgmsharp/trakt)项目并解压
+
+   下载[本项目](https://github.com/wan0ge/Bangumi-to-Trakt/archive/refs/heads/master.zip)
+
+   下载[trakt](https://github.com/xbgmsharp/trakt/archive/refs/heads/master.zip)
+
 * Python安装所需库
 ```
 pip install requests pandas python-Levenshtein python-dateutil simplejson
