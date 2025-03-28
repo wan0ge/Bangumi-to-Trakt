@@ -51,3 +51,32 @@ python import_trakt.py -c config.ini -f tmdb -i trakt_formatted_movies.csv -l ra
 ```
 python import_trakt.py -c config.ini -f tmdb -i trakt_formatted_shows.csv -l ratings -t Shows -r
 ```
+
+#### 本项目生成文件说明
+本项目在配置默认全开的情况下生成文件高达``9``个
+* `match_failed.csv`：条目匹配失败日志
+* `match_success.csv`：条目匹配成功日志
+* `trakt_formatted.csv`：未分类的所有转换成功条目
+* `trakt_formatted_movies.csv`：所有Movies（电影）条目
+* `trakt_formatted_movies_watched.csv`：Movies（电影）中看过的的条目
+* `trakt_formatted_movies_watchlist.csv`：Movies（电影）中未看完/未看过的的条目
+* `trakt_formatted_shows.csv`：所有Shows（剧集）条目
+* `trakt_formatted_shows_watched.csv`：Shows（剧集）中看过的的条目
+* `trakt_formatted_shows_watchlist.csv`：Shows（剧集）中未看完/未看过的的条目
+
+## 给小白的详细使用说明
+* 先安装Python：[Python安装教程-哔哩哔哩](https://www.bilibili.com/video/av421893699)(不要忘记勾选 "Add Python to PATH")
+* 申请[TMDB API](https://www.themoviedb.org/settings/api)：[TMDB API Key申请 - 绿联NAS私有云](https://www.ugnas.com/tutorial-detail/id-226.html)(随便填，申请就过)
+* 申请[Trakt API](https://trakt.tv/oauth/applications)：名称和描述随便填，Redirect uri(重定向uri)填写``urn:ietf:wg:oauth:2.0:oob``其余留空，然后点击保存
+
+* 将TMDB API密钥填入本项目config.ini配置文件
+* 在[trakt](https://github.com/xbgmsharp/trakt)项目文件夹内地址栏输入`cmd`输入命令创建config.ini配置文件
+```
+python export_trakt.py
+```
+* 然后打开将Trakt API的Client ID和Client Secret分别填入对应项
+* 然后cmd输入命令使用 PIN 码方法对 Trakt.tv API 进行验证，它将生成一个 access_token 和 refresh_token。脚本会生成一个授权链接，需要复制在浏览器中打开，然后将 PIN 码粘贴回脚本。生成的访问令牌和刷新令牌会自动保存到配置文件 config.ini 中。
+```
+python export_trakt.py
+```
+* [开始使用](https://github.com/wan0ge/Bangumi-to-Trakt/edit/master/README.md#%E5%BC%80%E5%A7%8B%E4%BD%BF%E7%94%A8)
