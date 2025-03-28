@@ -24,6 +24,8 @@
 pip install requests pandas python-Levenshtein python-dateutil simplejson
 ```
 
+* 使用[Bangumi](https://github.com/czy0729/Bangumi)本地备份功能导出CSV文件
+
 * 将导出CSV文件放入本项目文件夹内（\Bangumi-to-Trakt-master\Bangumi×××××××_××××-××-××_××-××-××.csv）
 
 * 修改本项目config.ini配置文件，只需要填写文件名和TMDb API Key就能使用
