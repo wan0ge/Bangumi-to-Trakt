@@ -12,7 +12,7 @@
 
 ## 方案：
 
-使用[Bangumi](https://github.com/czy0729/Bangumi)客户端的本地备份功能导出CSV文件→使用本项目转换CSV格式内容为Trakt支持的格式内容→使用[trakt](https://github.com/xbgmsharp/trakt)项目将CSV导入Trakt.tv（官方导入也支持但条目成功率不如这个）
+使用[Bangumi](https://github.com/czy0729/Bangumi)客户端的本地备份功能导出CSV文件 → 使用本项目转换CSV格式内容为Trakt支持的格式内容 → 使用[trakt](https://github.com/xbgmsharp/trakt)项目将CSV导入Trakt.tv(官方导入也支持但条目成功率不如这个)
 
 本项目将提供全程保姆级教程
 
