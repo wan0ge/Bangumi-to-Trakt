@@ -19,11 +19,16 @@
 * [Trakt API](https://trakt.tv/oauth/applications)（任意创建）
 
 ## 开始使用
+* Python安装所需库
+```
+pip install requests pandas python-Levenshtein python-dateutil simplejson
+```
+
 * 将导出CSV文件放入本项目文件夹内（\Bangumi-to-Trakt-master\Bangumi×××××××_××××-××-××_××-××-××.csv）
 
 * 修改本项目config.ini配置文件，只需要填写文件名和TMDb API Key就能使用
  
-* 启动Bangumi-to-Trakt.py开始转换
+* 启动Bangumi-to-Trakt.py开始转换然后等待
 
 * 使用[trakt](https://github.com/xbgmsharp/trakt)项目将CSV导入（CSV放入该项目文件夹内）
 
@@ -66,9 +71,12 @@ python import_trakt.py -c config.ini -f tmdb -i trakt_formatted_shows.csv -l rat
 
 ## 给小白的详细使用说明
 * 先安装Python：[Python安装教程-哔哩哔哩](https://www.bilibili.com/video/av421893699)(不要忘记勾选 "Add Python to PATH")
+* win+x打开Windows PowerShell一键安装所需Python库
+```
+pip install requests pandas python-Levenshtein python-dateutil simplejson
+```
 * 申请[TMDB API](https://www.themoviedb.org/settings/api)：[TMDB API Key申请 - 绿联NAS私有云](https://www.ugnas.com/tutorial-detail/id-226.html)(随便填，申请就过)
 * 申请[Trakt API](https://trakt.tv/oauth/applications)：名称和描述随便填，Redirect uri(重定向uri)填写``urn:ietf:wg:oauth:2.0:oob``其余留空，然后点击保存
-
 * 将TMDB API密钥填入本项目config.ini配置文件
 * 在[trakt](https://github.com/xbgmsharp/trakt)项目文件夹内地址栏输入`cmd`输入命令创建config.ini配置文件
 ```
