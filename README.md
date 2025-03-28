@@ -1,6 +1,14 @@
 # Bangumi-to-Trakt
 从Bangumi迁移至Trakt / 导出Bangumi记录到Trakt / CSV文件格式转换
 
+### 预览
+<img src="https://github.com/user-attachments/assets/3f322a78-9385-4b3f-988a-b13b47e2660d" width="800px">
+
+<img src="https://github.com/user-attachments/assets/9f84a3cc-2d87-41b9-b03f-4d0affdf7852" width="800px">
+<img src="https://github.com/user-attachments/assets/6ffe8154-e907-4fdf-a075-9f1aeeb13de1" width="800px">
+
+<img src="https://github.com/user-attachments/assets/5822bdc2-b15a-4475-a69f-23c27ea8e665" width="800px">
+<img src="https://github.com/user-attachments/assets/efb879a4-67bb-40ea-aba8-a6bdf59e7f5f" width="800px">
 
 ## 方案：
 
