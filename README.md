@@ -85,6 +85,19 @@ python import_trakt.py -c config.ini -f tmdb -i trakt_formatted_shows.csv -l rat
 * `trakt_formatted_shows_watched.csv`：Shows（剧集）中看过的的条目
 * `trakt_formatted_shows_watchlist.csv`：Shows（剧集）中未看完/未看过的的条目
 
+#### 本项目支持的csv文件格式（"中文"或"日文"为必须）
+```
+"ID","类型","中文","日文","放送","排名","评分","话数","看到","状态","标签","我的评价","我的简评","私密","更新时间"
+277727,"动画","时光碎片","フラグタイム","2020-05-13",5059,6.5,1,"","看过","百合 剧场版","","","","2025-03-22T03:38:45+08:00"
+174584,"动画","轻拍翻转小魔女","フリップフラッパーズ","2016-10-06",928,7.5,13,13,"看过","原创 奇幻 百合","","","","2025-03-22T01:04:17+08:00"
+```
+#### 本项目转换后的csv文件格式
+```
+tmdb,watched_at,watchlisted_at,rating,rated_at
+630027,2025-03-21T19:38:45Z,,,
+68272,2025-03-21T17:04:17Z,,,
+```
+
 ## 给小白的详细使用说明
 * 先安装Python：[Python安装教程-哔哩哔哩](https://www.bilibili.com/video/av421893699)(不要忘记勾选 "Add Python to PATH")
 * win+x打开Windows PowerShell一键安装所需Python库
