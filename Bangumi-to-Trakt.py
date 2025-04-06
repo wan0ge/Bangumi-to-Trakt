@@ -204,7 +204,7 @@ def convert_to_iso8601(date_str):
 # 新增评分转换函数
 def convert_rating(rating_str):
     """
-    将用户评价转换为 trakt 平台的评分
+    将用户评价转换为 trakt 平台的评分（支持10分制或百分制自动转换）
     """
     try:
         # 移除非数字字符
@@ -215,7 +215,14 @@ def convert_rating(rating_str):
         
         rating = int(rating_str)
         
-        # 将 10 分制转换为 trakt 的 10 分制
+        # 自动判断分制：若数值超过10则视为百分制
+        if rating > 10:
+            rating = round(rating / 10)  # 四舍五入到整数
+            # 或使用整除: rating = rating // 10
+        
+        # 确保评分在1-10之间
+        rating = max(1, min(rating, 10))  # 强制限制范围
+        
         return str(rating)
     except (ValueError, TypeError):
         return ""
