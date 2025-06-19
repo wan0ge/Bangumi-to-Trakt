@@ -9,14 +9,29 @@ import sys
 import traceback
 import Levenshtein
 import re
+import logging  # 新增：日志
 from datetime import datetime, timezone
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
+# ========== 日志初始化 ==========
+LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Bangumi-to-Trakt.log")
+logging.basicConfig(
+    filename=LOG_PATH,
+    filemode='a',
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    level=logging.INFO
+)
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+logging.getLogger().addHandler(console_handler)
+logging.info("========== 脚本启动 ==========")
+
 def archive_old_files(script_dir):
     """
     将旧的输出文件和日志文件移动到 'old_documents' 子目录
-    
+
     Args:
         script_dir (str): 脚本所在的目录路径
     """
@@ -59,12 +74,11 @@ def archive_old_files(script_dir):
             # 创建带时间戳的新文件名
             new_filename = f"{timestamp}_{filename}"
             archive_path = os.path.join(old_docs_dir, new_filename)
-            
             try:
                 shutil.move(file_path, archive_path)
-                print(f"[归档] 已将 {filename} 移动到 {new_filename}")
+                logging.info(f"[归档] 已将 {filename} 移动到 {new_filename}")
             except Exception as e:
-                print(f"[警告] 无法归档 {filename}: {e}")
+                logging.warning(f"[警告] 无法归档 {filename}: {e}")
 
 # 获取脚本所在目录
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -73,7 +87,6 @@ CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.ini")
 # 读取配置文件
 def read_config():
     config = configparser.ConfigParser()
-    
     # 如果配置文件不存在，创建默认配置
     if not os.path.exists(CONFIG_PATH):
         # 使用多行字符串来保留注释
@@ -118,11 +131,10 @@ watchlist_statuses = 在看,在读,在听,想看,想读,想听
 # 被忽略的状态/你期望被忽略不导入的
 ignored_statuses = 搁置,抛弃,在玩,想玩,玩过
 '''
-        
         # 直接写入包含注释的完整文件内容
         with open(CONFIG_PATH, 'w', encoding='utf-8') as configfile:
             configfile.write(config_content)
-    
+        logging.info(f"首次生成配置文件：{CONFIG_PATH}")
     # 读取配置文件
     config.read(CONFIG_PATH, encoding='utf-8')
     return config
@@ -158,6 +170,8 @@ MATCH_FAILED_LOG = os.path.join(SCRIPT_DIR, "match_failed.csv")
 
 # 打印详细错误信息
 def print_error_details():
+    logging.error("发生错误，详细信息：")
+    logging.error(traceback.format_exc())
     print("发生错误，详细信息：")
     print("-" * 50)
     traceback.print_exc()
@@ -179,7 +193,6 @@ def convert_to_iso8601(date_str):
         for fmt in date_formats:
             try:
                 dt = datetime.strptime(date_str, fmt)
-                
                 # 处理带时区的 ISO 8601 格式
                 if '%z' in fmt:
                     # 转换为 UTC
@@ -187,16 +200,16 @@ def convert_to_iso8601(date_str):
                 else:
                     # 对于没有时区的日期，添加 UTC 时区
                     dt = dt.replace(tzinfo=timezone.utc)
-                
                 # 使用 isoformat() 确保正确的 ISO 8601 格式
                 converted = dt.isoformat().replace('+00:00', 'Z')
                 return converted
             except ValueError:
                 continue
-        
+        logging.warning(f"警告：无法解析日期: {date_str}")
         print(f"警告：无法解析日期: {date_str}")
         return None
     except Exception as e:
+        logging.error(f"日期转换错误: {e}")
         print(f"日期转换错误: {e}")
         print_error_details()
         return None
@@ -209,20 +222,14 @@ def convert_rating(rating_str):
     try:
         # 移除非数字字符
         rating_str = ''.join(filter(str.isdigit, str(rating_str)))
-        
         if not rating_str:
             return ""
-        
         rating = int(rating_str)
-        
         # 自动判断分制：若数值超过10则视为百分制
         if rating > 10:
             rating = round(rating / 10)  # 四舍五入到整数
-            # 或使用整除: rating = rating // 10
-        
         # 确保评分在1-10之间
         rating = max(1, min(rating, 10))  # 强制限制范围
-        
         return str(rating)
     except (ValueError, TypeError):
         return ""
@@ -233,13 +240,12 @@ def get_imdb_id(title_cn, title_jp, year=None, is_tv=False, prefer_tmdb=False, m
     TMDB_API_KEY = config.get('TMDb', 'api_key')
     # 获取是否禁用年份匹配的配置
     DISABLE_YEAR_MATCH = config.getboolean('General', 'disable_year_match')
-	
+
     def create_robust_session():
         """
         创建一个具有重试机制的robust会话
         """
         session = requests.Session()
-        
         # 配置重试策略
         retry_strategy = Retry(
             total=3,  # 总重试次数
@@ -247,14 +253,11 @@ def get_imdb_id(title_cn, title_jp, year=None, is_tv=False, prefer_tmdb=False, m
             allowed_methods=["HEAD", "GET", "OPTIONS"],  # 允许重试的方法
             backoff_factor=0.5  # 重试间隔时间指数增长
         )
-        
         # 创建适配器
         adapter = HTTPAdapter(max_retries=retry_strategy)
-        
         # 绑定适配器
         session.mount("https://", adapter)
         session.mount("http://", adapter)
-        
         return session
     
     def calculate_similarity(str1, str2):
@@ -264,15 +267,12 @@ def get_imdb_id(title_cn, title_jp, year=None, is_tv=False, prefer_tmdb=False, m
         """
         if not str1 or not str2:
             return 0
-        
         # 归一化处理（去除空格和特殊字符）
         str1 = ''.join(char for char in str1 if char.isalnum())
         str2 = ''.join(char for char in str2 if char.isalnum())
-        
         # 计算 Levenshtein 距离
         distance = Levenshtein.distance(str1.lower(), str2.lower())
         max_len = max(len(str1), len(str2))
-        
         # 计算相似度百分比
         similarity = (1 - distance / max_len) * 100
         return similarity
@@ -280,26 +280,20 @@ def get_imdb_id(title_cn, title_jp, year=None, is_tv=False, prefer_tmdb=False, m
     def query_tmdb(title, search_type, title_language):
         try:
             session = create_robust_session()
-            
             search_url = f"https://api.themoviedb.org/3/search/{search_type}"
             params = {
                 "api_key": TMDB_API_KEY,
                 "query": title,
                 "language": title_language
             }
-    
             # 使用session进行请求，设置更长的超时时间
             response = session.get(search_url, params=params, timeout=(5, 15))
-            
             # 检查响应
             response.raise_for_status()
-            
             data = response.json()
-
             if "results" in data and len(data["results"]) > 0:
                 # 获取原始搜索名称（中文或日文）
                 original_titles = [title_cn, title_jp]
-                
                 # 处理匹配逻辑
                 best_matches = []
                 for item in data["results"]:
@@ -310,7 +304,6 @@ def get_imdb_id(title_cn, title_jp, year=None, is_tv=False, prefer_tmdb=False, m
                         item.get('title', ''),
                         item.get('original_title', '')
                     ]
-                    
                     # 计算最大相似度
                     max_similarity = 0
                     api_match_title = ''
@@ -320,7 +313,6 @@ def get_imdb_id(title_cn, title_jp, year=None, is_tv=False, prefer_tmdb=False, m
                             if similarity > max_similarity:
                                 max_similarity = similarity
                                 api_match_title = api_title
-                    
                     # 年份匹配（如果未禁用年份匹配）
                     year_match = False
                     if not DISABLE_YEAR_MATCH and year and max_similarity >= 50:
@@ -328,7 +320,6 @@ def get_imdb_id(title_cn, title_jp, year=None, is_tv=False, prefer_tmdb=False, m
                             year_match = item.get('first_air_date', '').startswith(str(year))
                         else:
                             year_match = item.get('release_date', '').startswith(str(year))
-                    
                     # 添加到最佳匹配列表
                     best_matches.append({
                         'item': item,
@@ -336,7 +327,6 @@ def get_imdb_id(title_cn, title_jp, year=None, is_tv=False, prefer_tmdb=False, m
                         'year_match': year_match,
                         'match_title': api_match_title
                     })
-                
                 # 根据是否禁用年份匹配选择排序方式
                 if DISABLE_YEAR_MATCH:
                     # 仅根据相似度排序
@@ -347,12 +337,10 @@ def get_imdb_id(title_cn, title_jp, year=None, is_tv=False, prefer_tmdb=False, m
                         key=lambda x: (x['similarity'] >= 50, x['year_match'], x['similarity']), 
                         reverse=True
                     )
-                
                 # 选择最佳匹配
                 if best_matches and best_matches[0]['similarity'] >= 50:
                     best_match = best_matches[0]['item']
                     tmdb_id = best_match["id"]
-                    
                     # 查询 IMDb ID
                     external_url = f"https://api.themoviedb.org/3/{search_type}/{tmdb_id}/external_ids"
                     try:
@@ -361,11 +349,10 @@ def get_imdb_id(title_cn, title_jp, year=None, is_tv=False, prefer_tmdb=False, m
                         external_response.raise_for_status()
                         external_data = external_response.json()
                     except requests.exceptions.RequestException as e:
+                        logging.warning(f"外部ID查询错误: {e}")
                         print(f"外部ID查询错误: {e}")
                         external_data = {}
-                    
                     imdb_id = external_data.get("imdb_id")
-                    
                     if imdb_id:
                         return {
                             'tmdb': str(tmdb_id),
@@ -382,9 +369,9 @@ def get_imdb_id(title_cn, title_jp, year=None, is_tv=False, prefer_tmdb=False, m
                             'similarity': best_matches[0]['similarity'],
                             'type': search_type
                         }
-            
             return None
         except requests.exceptions.RequestException as e:
+            logging.warning(f"TMDb 查询错误: {e}")
             print(f"查询错误: {e}")
             return None
 
@@ -402,7 +389,7 @@ def get_imdb_id(title_cn, title_jp, year=None, is_tv=False, prefer_tmdb=False, m
                         if parts[0] not in ['Re', '第', '第一', '第二', '第三', '第四', '第五']:
                             return parts[0]
                 return title
-            
+
             def clean_title(title):
                 # 去除特定的版本、季数等信息
                 title = re.sub(r'第\S*季', '', title)  # 去除"第X季"
@@ -410,7 +397,6 @@ def get_imdb_id(title_cn, title_jp, year=None, is_tv=False, prefer_tmdb=False, m
                 title = re.sub(r'[（\(].+[）\)]', '', title)  # 去除括号及其内容
                 title = re.sub(r'^\s*Re[:：]\s*', '', title)  # 去除开头的"Re:"
                 return title.strip()
-
             # 如果中文名和日文名都为空，直接返回 None
             if not title_cn and not title_jp:
                 return None
@@ -424,46 +410,39 @@ def get_imdb_id(title_cn, title_jp, year=None, is_tv=False, prefer_tmdb=False, m
                 tv_search_patterns.extend([
                     (title_jp, 'tv', 'ja')
                 ])
-
             # 2. 部分日文名搜索 (TV)
             part_jp = split_title(title_jp) if title_jp else None
             if part_jp and len(part_jp) > 2:
                 tv_search_patterns.extend([
                     (part_jp, 'tv', 'ja')
                 ])
-
             # 3. 完整中文名搜索 (TV)
             if title_cn and title_cn.strip():
                 tv_search_patterns.extend([
                     (title_cn, 'tv', 'zh-CN')
                 ])
-
             # 4. 部分中文名搜索 (TV)
             part_cn = split_title(title_cn) if title_cn else None
             if part_cn and len(part_cn) > 2:
                 tv_search_patterns.extend([
                     (part_cn, 'tv', 'zh-CN')
                 ])
-
             # Movie 搜索模式（仅在 TV 搜索全部失败后使用）
             # 1. 完整日文名搜索 (Movie)
             if title_jp and title_jp.strip():
                 movie_search_patterns.extend([
                     (title_jp, 'movie', 'ja')
                 ])
-
             # 2. 部分日文名搜索 (Movie)
             if part_jp and len(part_jp) > 2:
                 movie_search_patterns.extend([
                     (part_jp, 'movie', 'ja')
                 ])
-
             # 3. 完整中文名搜索 (Movie)
             if title_cn and title_cn.strip():
                 movie_search_patterns.extend([
                     (title_cn, 'movie', 'zh-CN')
                 ])
-
             # 4. 部分中文名搜索 (Movie)
             if part_cn and len(part_cn) > 2:
                 movie_search_patterns.extend([
@@ -475,28 +454,28 @@ def get_imdb_id(title_cn, title_jp, year=None, is_tv=False, prefer_tmdb=False, m
                 result = query_tmdb(title, search_type, language)
                 if result:
                     return result
-
             # 如果 TV 搜索全部失败，再尝试 Movie 搜索
             for title, search_type, language in movie_search_patterns:
                 result = query_tmdb(title, search_type, language)
                 if result:
                     return result
-
             return None
         except requests.exceptions.RequestException as e:
+            logging.warning(f"网络错误，第 {attempt + 1} 次尝试失败: {e}")
             print(f"网络错误，第 {attempt + 1} 次尝试失败: {e}")
             time.sleep(2)
         except Exception as e:
+            logging.warning(f"查询错误，第 {attempt + 1} 次尝试失败: {e}")
             print(f"查询错误，第 {attempt + 1} 次尝试失败: {e}")
             time.sleep(2)
-    
     return None
 
 # main 函数中增加 rating 处理
 def main():
     # 在读取配置和处理文件之前调用归档函数
     archive_old_files(SCRIPT_DIR)
-    
+    logging.info("已归档旧文件")
+
     # 从配置文件读取配置项
     PREFER_TMDB_ID = config.getboolean('General', 'prefer_tmdb_id')
     SEPARATE_EXPORT = config.getboolean('General', 'separate_export')
@@ -505,7 +484,6 @@ def main():
 
     # 调整文件打开策略
     files_to_open = [(TEMP_CSV, 'w'), (MATCH_SUCCESS_LOG, 'w'), (MATCH_FAILED_LOG, 'w')]
-    
     # 根据 SEPARATE_EXPORT 和 DETAILED_EXPORT 动态调整文件打开策略
     if not SEPARATE_EXPORT and DETAILED_EXPORT:
         # 当不分类但需要详细导出时
@@ -519,7 +497,6 @@ def main():
             (TEMP_MOVIES_CSV, 'w'), 
             (TEMP_SHOWS_CSV, 'w')
         ])
-        
         # 详细导出时添加更多文件
         if DETAILED_EXPORT:
             files_to_open.extend([
@@ -537,7 +514,6 @@ def main():
             return ["tmdb" if PREFER_TMDB_ID else "imdb", "watched_at", "watchlisted_at", "rating", "rated_at"]
 
     headers = get_headers(ID_FORMAT, PREFER_TMDB_ID)
-    
     # 动态生成头部配置
     headers_config = {
         'main': headers,
@@ -552,9 +528,10 @@ def main():
     }
 
     try:
+        logging.info(f"尝试读取文件: {INPUT_CSV}")
         print(f"尝试读取文件: {INPUT_CSV}")
         df = pd.read_csv(INPUT_CSV, encoding="utf-8")
-        
+        logging.info(f"[信息] 读取到 {len(df)} 行数据")
         print(f"[信息] 读取到 {len(df)} 行数据")
 
         # 初始化计数器
@@ -578,55 +555,47 @@ def main():
         writers = {}
         for file_path, mode in files_to_open:
             file_handles[file_path] = open(file_path, mode=mode, newline='', encoding="utf-8", buffering=1)
-        
+
         # 动态创建写入器
         writers = {}
         if TEMP_CSV in file_handles:
             writers['main'] = csv.writer(file_handles[TEMP_CSV])
             writers['main'].writerow(headers_config['main'])
-        
+
         # 根据配置添加特定写入器
         if not SEPARATE_EXPORT and DETAILED_EXPORT:
             # 当不分类但需要详细导出时
             if TEMP_WATCHED_CSV in file_handles:
                 writers['watched'] = csv.writer(file_handles[TEMP_WATCHED_CSV])
                 writers['watched'].writerow(headers_config['watched'])
-            
             if TEMP_WATCHLIST_CSV in file_handles:
                 writers['watchlist'] = csv.writer(file_handles[TEMP_WATCHLIST_CSV])
                 writers['watchlist'].writerow(headers_config['watchlist'])
-        
         elif SEPARATE_EXPORT:
             # 原有的分类文件写入器
             if TEMP_MOVIES_CSV in file_handles:
                 writers['movies'] = csv.writer(file_handles[TEMP_MOVIES_CSV])
                 writers['movies'].writerow(headers_config['movies'])
-            
             if TEMP_SHOWS_CSV in file_handles:
                 writers['shows'] = csv.writer(file_handles[TEMP_SHOWS_CSV])
                 writers['shows'].writerow(headers_config['shows'])
-            
             # 详细导出时
             if DETAILED_EXPORT:
                 if TEMP_MOVIES_WATCHED_CSV in file_handles:
                     writers['movies_watched'] = csv.writer(file_handles[TEMP_MOVIES_WATCHED_CSV])
                     writers['movies_watched'].writerow(headers_config['movies_watched'])
-                
                 if TEMP_SHOWS_WATCHED_CSV in file_handles:
                     writers['shows_watched'] = csv.writer(file_handles[TEMP_SHOWS_WATCHED_CSV])
                     writers['shows_watched'].writerow(headers_config['shows_watched'])
-                
                 if TEMP_MOVIES_WATCHLIST_CSV in file_handles:
                     writers['movies_watchlist'] = csv.writer(file_handles[TEMP_MOVIES_WATCHLIST_CSV])
                     writers['movies_watchlist'].writerow(headers_config['movies_watchlist'])
-                
                 if TEMP_SHOWS_WATCHLIST_CSV in file_handles:
                     writers['shows_watchlist'] = csv.writer(file_handles[TEMP_SHOWS_WATCHLIST_CSV])
                     writers['shows_watchlist'].writerow(headers_config['shows_watchlist'])
 
         success_writer = csv.writer(file_handles[MATCH_SUCCESS_LOG])
         failed_writer = csv.writer(file_handles[MATCH_FAILED_LOG])
-        
         success_writer.writerow(["中文名", "日文名", "匹配ID", "匹配名称", "相似度", "类型"])
         failed_writer.writerow(["中文名", "日文名", "失败原因"])
 
@@ -634,54 +603,52 @@ def main():
         watched_statuses = config.get('Statuses', 'watched_statuses').split(',')
         watchlist_statuses = config.get('Statuses', 'watchlist_statuses').split(',')
         ignored_statuses = config.get('Statuses', 'ignored_statuses').split(',')
-        
+
         # 逐行处理并写入
         for index, row in df.iterrows():
             try:
                 # 使用pandas的方法严格处理空值
                 title_cn = row.get("中文", "")
                 title_jp = row.get("日文", "")
-
                 # 严格的空值检查
                 if pd.isna(title_cn):
                     title_cn = ""
                 if pd.isna(title_jp):
                     title_jp = ""
-
                 # 转换为字符串并去除两端空白
                 title_cn = str(title_cn).strip()
                 title_jp = str(title_jp).strip()
-
                 is_tv = str(row.get("类型", "")).strip() == "动画"
                 status = str(row.get("状态", "")).strip()
                 watched_at = str(row.get("更新时间", "")).strip()
-                
                 # 新增：处理评分
                 rating = convert_rating(row.get("我的评价", ""))
-                
                 try:
                     year = int(str(row.get("放送", "")).split('-')[0]) if str(row.get("放送", "")) else None
                 except (ValueError, TypeError):
                     year = None
 
+                logging.info(f"处理行 {index}: 中文名={title_cn}, 日文名={title_jp}, 状态={status}, 年份={year}")
                 print(f"处理行 {index}: 中文名={title_cn}, 日文名={title_jp}, 状态={status}, 年份={year}")
-                
+
                 # 跳过被忽略的状态
                 if status in ignored_statuses:
                     count_ignored += 1
+                    logging.info(f"忽略状态为 {status} 的条目：{title_cn}/{title_jp}")
                     print(f"忽略状态为 {status} 的条目")
                     failed_writer.writerow([title_cn, title_jp, f"被忽略的状态: {status}"])
                     file_handles[MATCH_FAILED_LOG].flush()
                     continue
-                
+
                 # 如果两个标题都为空，跳过此行
                 if not title_cn and not title_jp:
+                    logging.info("标题为空，跳过此条目")
                     print("标题为空，跳过")
                     count_not_found += 1
                     failed_writer.writerow([title_cn, title_jp, "标题为空"])
                     file_handles[MATCH_FAILED_LOG].flush()
                     continue
-                
+
                 # 根据配置返回正确的ID
                 def get_id_column(match_result, ID_FORMAT, PREFER_TMDB_ID):
                     if ID_FORMAT == '2':
@@ -691,22 +658,18 @@ def main():
                         return match_result['tmdb'] if PREFER_TMDB_ID else match_result['imdb']
 
                 match_result = get_imdb_id(title_cn, title_jp, year, is_tv, prefer_tmdb=PREFER_TMDB_ID)
-                
                 if match_result:
                     imdb_id = get_id_column(match_result, ID_FORMAT, PREFER_TMDB_ID)
-                    
                 # 在处理每一行的循环中，替换原有的重复检查逻辑
                 if match_result:
                     imdb_id = get_id_column(match_result, ID_FORMAT, PREFER_TMDB_ID)
                     media_type = match_result.get('type', 'unknown')
-                    
                     # 创建一个唯一的条目标识，包括ID、媒体类型和状态
                     entry_key = (imdb_id, media_type, '已看' if status in watched_statuses else '想看')
-                    
                     # 检查是否已处理过完全相同的条目
                     if entry_key in processed_entries:
+                        logging.info(f"跳过重复条目：{title_cn} / {title_jp}，ID: {imdb_id}，类型: {media_type}，状态: {status}")
                         print(f"跳过重复条目：{title_cn} / {title_jp}，ID: {imdb_id}，类型: {media_type}，状态: {status}")
-                        
                         # 在匹配失败日志中记录重复条目
                         failed_writer.writerow([
                             title_cn, 
@@ -714,19 +677,14 @@ def main():
                             f"重复条目，ID: {imdb_id}，类型: {media_type}，状态: {status}"
                         ])
                         file_handles[MATCH_FAILED_LOG].flush()
-                        
                         count_duplicate += 1  # 增加重复计数
                         continue
-                    
                     # 将此条目添加到已处理集合
                     processed_entries.add(entry_key)
-
                     match_name = match_result.get('match_name', '')
                     similarity = match_result.get('similarity', 0)
                     media_type = match_result.get('type', 'unknown')
-                    
                     iso_watched_at = convert_to_iso8601(watched_at)
-                    
                     # 通用文件写入逻辑
                     if status in watched_statuses:
                         writers['main'].writerow([
@@ -736,7 +694,6 @@ def main():
                             rating,
                             iso_watched_at or "" if rating else ""
                         ])
-                        
                         # 不分类，但需要详细导出
                         if not SEPARATE_EXPORT and DETAILED_EXPORT:
                             writers['watched'].writerow([
@@ -747,7 +704,6 @@ def main():
                                 iso_watched_at or "" if rating else ""
                             ])
                             count_watched += 1
-                        
                         elif SEPARATE_EXPORT:
                             if media_type == 'movie':
                                 writers['movies'].writerow([
@@ -758,7 +714,6 @@ def main():
                                     iso_watched_at or "" if rating else ""
                                 ])
                                 count_movies += 1
-                                
                                 if DETAILED_EXPORT:
                                     writers['movies_watched'].writerow([
                                         imdb_id,
@@ -768,7 +723,6 @@ def main():
                                         iso_watched_at or "" if rating else ""
                                     ])
                                     count_movies_watched += 1
-                            
                             elif media_type == 'tv':
                                 writers['shows'].writerow([
                                     imdb_id,
@@ -778,7 +732,6 @@ def main():
                                     iso_watched_at or "" if rating else ""
                                 ])
                                 count_shows += 1
-                                
                                 if DETAILED_EXPORT:
                                     writers['shows_watched'].writerow([
                                         imdb_id,
@@ -788,7 +741,6 @@ def main():
                                         iso_watched_at or "" if rating else ""
                                     ])
                                     count_shows_watched += 1
-                    
                     elif status in watchlist_statuses:
                         writers['main'].writerow([
                             imdb_id,
@@ -797,7 +749,6 @@ def main():
                             rating,
                             iso_watched_at or "" if rating else ""
                         ])
-                        
                         # 不分类，但需要详细导出
                         if not SEPARATE_EXPORT and DETAILED_EXPORT:
                             writers['watchlist'].writerow([
@@ -808,7 +759,6 @@ def main():
                                 iso_watched_at or "" if rating else ""
                             ])
                             count_watchlist += 1
-                        
                         elif SEPARATE_EXPORT:
                             if media_type == 'movie':
                                 writers['movies'].writerow([
@@ -819,7 +769,6 @@ def main():
                                     iso_watched_at or "" if rating else ""
                                 ])
                                 count_movies += 1
-                                
                                 if DETAILED_EXPORT:
                                     writers['movies_watchlist'].writerow([
                                         imdb_id,
@@ -829,7 +778,6 @@ def main():
                                         iso_watched_at or "" if rating else ""
                                     ])
                                     count_movies_watchlist += 1
-                            
                             elif media_type == 'tv':
                                 writers['shows'].writerow([
                                     imdb_id,
@@ -839,7 +787,6 @@ def main():
                                     iso_watched_at or "" if rating else ""
                                 ])
                                 count_shows += 1
-                                
                                 if DETAILED_EXPORT:
                                     writers['shows_watchlist'].writerow([
                                         imdb_id,
@@ -849,7 +796,6 @@ def main():
                                         iso_watched_at or "" if rating else ""
                                     ])
                                     count_shows_watchlist += 1
-                    
                     success_writer.writerow([
                         title_cn, 
                         title_jp, 
@@ -859,10 +805,12 @@ def main():
                         media_type
                     ])
                     file_handles[MATCH_SUCCESS_LOG].flush()
-                    
+                    logging.info(f"匹配成功 [{title_cn}/{title_jp}] ID:{imdb_id} 名称:{match_name} 相似度:{similarity:.2f}% 类型:{media_type}")
+                    print(f"匹配成功 [{title_cn}/{title_jp}] 转换后ID:{imdb_id} 名称:{match_name} 相似度:{similarity:.2f}% 类型:{media_type}")
                     count_found += 1
                 else:
                     count_not_found += 1
+                    logging.warning(f"未找到 ID：{title_cn} / {title_jp}")
                     print(f"未找到 ID：{title_cn} / {title_jp}")
                     failed_writer.writerow([
                         title_cn, 
@@ -870,14 +818,12 @@ def main():
                         "未找到匹配ID（尝试了TV和电影搜索）"
                     ])
                     file_handles[MATCH_FAILED_LOG].flush()
-                
                 # 将所有文件缓冲区刷新
                 for file_handle in file_handles.values():
                     file_handle.flush()
-                
                 time.sleep(0.3)
-            
             except Exception as row_error:
+                logging.error(f"处理第 {index} 行时出错: {row_error}")
                 print(f"处理第 {index} 行时出错: {row_error}")
                 print_error_details()
                 failed_writer.writerow([title_cn, title_jp, str(row_error)])
@@ -890,14 +836,12 @@ def main():
         # 重命名临时文件为最终输出文件
         if os.path.exists(TEMP_CSV):
             shutil.move(TEMP_CSV, OUTPUT_CSV)
-        
         # 根据配置重命名其他临时文件
         if SEPARATE_EXPORT:
             if os.path.exists(TEMP_MOVIES_CSV):
                 shutil.move(TEMP_MOVIES_CSV, OUTPUT_MOVIES_CSV)
             if os.path.exists(TEMP_SHOWS_CSV):
                 shutil.move(TEMP_SHOWS_CSV, OUTPUT_SHOWS_CSV)
-            
             if DETAILED_EXPORT:
                 if os.path.exists(TEMP_MOVIES_WATCHED_CSV):
                     shutil.move(TEMP_MOVIES_WATCHED_CSV, OUTPUT_MOVIES_WATCHED_CSV)
@@ -907,7 +851,6 @@ def main():
                     shutil.move(TEMP_MOVIES_WATCHLIST_CSV, OUTPUT_MOVIES_WATCHLIST_CSV)
                 if os.path.exists(TEMP_SHOWS_WATCHLIST_CSV):
                     shutil.move(TEMP_SHOWS_WATCHLIST_CSV, OUTPUT_SHOWS_WATCHLIST_CSV)
-        
         # 对于不分类但详细导出的情况
         if not SEPARATE_EXPORT and DETAILED_EXPORT:
             if os.path.exists(TEMP_WATCHED_CSV):
@@ -915,40 +858,63 @@ def main():
             if os.path.exists(TEMP_WATCHLIST_CSV):
                 shutil.move(TEMP_WATCHLIST_CSV, OUTPUT_WATCHLIST_CSV)
         # 统计输出需要调整
+        logging.info("[完成] 处理完成：")
+        logging.info(f"- 找到 {count_found} 部作品的 ID")
+        logging.info(f"- {count_not_found} 部作品未找到 ID")
+        logging.info(f"- {count_ignored} 部作品因状态被忽略")
+        logging.info(f"- {count_duplicate} 部作品因重复被跳过")
+        if not SEPARATE_EXPORT and DETAILED_EXPORT:
+            logging.info(f"- 已看作品：{count_watched} 部")
+            logging.info(f"- 想看作品：{count_watchlist} 部")
+        elif SEPARATE_EXPORT:
+            logging.info(f"- {count_movies} 部电影")
+            logging.info(f"- {count_shows} 部电视节目")
+            if DETAILED_EXPORT:
+                logging.info(f"  - 已看电影：{count_movies_watched} 部")
+                logging.info(f"  - 想看电影：{count_movies_watchlist} 部")
+                logging.info(f"  - 已看电视节目：{count_shows_watched} 部")
+                logging.info(f"  - 想看电视节目：{count_shows_watchlist} 部")
+        logging.info(f"[输出] 结果已保存至 {OUTPUT_CSV}")
+        logging.info(f"[日志] 匹配成功日志：{MATCH_SUCCESS_LOG}")
+        logging.info(f"[日志] 匹配失败日志：{MATCH_FAILED_LOG}")
         print("[完成] 处理完成：")
         print(f"- 找到 {count_found} 部作品的 ID")
         print(f"- {count_not_found} 部作品未找到 ID")
         print(f"- {count_ignored} 部作品因状态被忽略")
         print(f"- {count_duplicate} 部作品因重复被跳过")
-        
         if not SEPARATE_EXPORT and DETAILED_EXPORT:
             print(f"- 已看作品：{count_watched} 部")
             print(f"- 想看作品：{count_watchlist} 部")
-        
         elif SEPARATE_EXPORT:
             print(f"- {count_movies} 部电影")
             print(f"- {count_shows} 部电视节目")
-            
             if DETAILED_EXPORT:
                 print(f"  - 已看电影：{count_movies_watched} 部")
                 print(f"  - 想看电影：{count_movies_watchlist} 部")
                 print(f"  - 已看电视节目：{count_shows_watched} 部")
                 print(f"  - 想看电视节目：{count_shows_watchlist} 部")
-        
         print(f"[输出] 结果已保存至 {OUTPUT_CSV}")
-        
-        # 这里还需要补充其他输出路径的打印
-        
         print(f"[日志] 匹配成功日志：{MATCH_SUCCESS_LOG}")
         print(f"[日志] 匹配失败日志：{MATCH_FAILED_LOG}")
-
-        # 添加一个暂停，防止窗口立即关闭
         input("处理完成，按回车键退出...")
 
     except Exception as e:
+        logging.error("整体处理过程出错:")
         print("整体处理过程出错:")
         print_error_details()
         input("发生错误，按回车键退出...")
 
 if __name__ == "__main__":
+    print("欢迎使用 Bangumi to Trakt 转换工具 v8.0")
+    print("https://github.com/wan0ge/Bangumi-to-Trakt")
+    print("-" * 60)
+    print("本工具将把 Bangumi 导出的观看记录转换为 Trakt 可导入格式")
+    print("请确保已在 config.ini 文件中设置了正确的 TMDB API Key 和输入文件名")
+    print(f"当前输入文件名为: {config['General']['input_file']}")
+    print("-" * 60)
+    confirm = input("确定要继续吗？输入 y 并回车继续，其他键退出：")
+    if confirm.lower() != 'y':
+        print("用户取消，程序退出。")
+        logging.info('========== 脚本结束 ==========')
+        exit(0)
     main()
